@@ -18,6 +18,19 @@ enum { LEFT, RIGHT, UP, DOWN };
 
 void initWin(WIN *win)
 {
+  initscr();
+  if(has_colors() == FALSE)
+  {
+    endwin();
+    printf("Your terminal does not support color\n");
+    exit(1);
+  }
+
+  start_color();
+  init_pair(1, COLOR_RED, COLOR_BLACK);
+  cbreak();
+  noecho();
+
   win->height = 9;
   win->width = 25;
   win->starty = 0;
@@ -46,7 +59,9 @@ void drawNums(const vector<line> &nums, WIN *win)
           if (nums[x][y] == 0) {
             mvprintw(j, i, "     ");
           } else {
+            attron(COLOR_PAIR(1));
             mvprintw(j, i, "%5d", nums[x][y]);
+            attroff(COLOR_PAIR(1));
           }
           i += 5;
         }
@@ -57,8 +72,9 @@ void drawNums(const vector<line> &nums, WIN *win)
 
 void printMsg(char *s)
 {
-  static int ey = 10;
-  mvprintw(ey, 0, s);
+  attron(COLOR_PAIR(2));
+  mvprintw(10, 0, s);
+  attroff(COLOR_PAIR(2));
   refresh();
 }
 
@@ -78,7 +94,6 @@ void initNums(vector<line> &nums)
     y1 = randPos();
   } while(x1 == x0 && y1 == y0);
 
-  int counter = 1;
   for (int i=0; i<4; ++i) {
     line l;
     for (int j=0; j<4; ++j)
@@ -169,6 +184,7 @@ void mergeUp(vector<line> &nums, vector<pos> &nullPos)
     }
   }
 }
+
 
 void mergeDown(vector<line> &nums, vector<pos> &nullPos)
 {
@@ -261,25 +277,15 @@ void fail()
 int main()
 {
   vector<line> nums;
-  initscr();
-  cbreak();
-  noecho();
-  init_pair(1, COLOR_CYAN, COLOR_BLACK);
-  refresh();
+  
 
   WIN win;
   initWin(&win);
   initNums(nums);
   drawNums(nums, &win);
 
-  int ch, ch2;
-  char msg[100];
-
-  int c = 0;
+  int ch;
   while((ch = getch()) != 'q') {
-    msg[c++] = ch;
-    msg[c] = '\0';
-    printMsg(msg);
     switch(ch) {
       case 'h':
       case 'H':
@@ -301,12 +307,19 @@ int main()
         merge(nums, DOWN);
         drawNums(nums, &win);
         break;
+      case 'r':
+      case 'R':
+        initNums(nums);
+        drawNums(nums, &win);
+        break;
     }
     if (judge(nums) == 1) {
       success();
+      getch();
       break;
     } else if (judge(nums) == -1) {
       fail();
+      getch();
       break;
     }
   }
