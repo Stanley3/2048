@@ -94,6 +94,7 @@ void initNums(vector<line> &nums)
     y1 = randPos();
   } while(x1 == x0 && y1 == y0);
 
+  nums.clear();
   for (int i=0; i<4; ++i) {
     line l;
     for (int j=0; j<4; ++j)
