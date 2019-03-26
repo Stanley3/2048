@@ -3,6 +3,7 @@
 #include <ctime>
 #include <vector>
 #include <deque>
+#include <iostream>
 using namespace std;
 
 typedef vector<int> line;
@@ -14,9 +15,41 @@ typedef struct _WIN_struct {
   int height, width;
 }WIN;
 
-enum { LEFT, RIGHT, UP, DOWN };
 
-void initWin(WIN *win)
+
+
+class Game
+{
+  public:
+    Game(int n, int target): _target(target), _n(n), _status(NORMAL) {
+      srand(time(NULL));
+    }
+    void initData();
+    void initWin();
+    void processInput();
+    void draw();
+    bool isQuit() { return _status == QUIT; }
+    void clearWin() { endwin(); }
+  private:
+    int _target;
+    int _n;
+    enum { NORMAL, QUIT, OVER, SUCCESS };
+    int _status;
+    vector<line> _data;
+    const char *DESC    = "QUIT(Q),RESTART(R),UP(W),DOWN(S),LEFT(A),RIGHT(D)";
+    const char *success = "YOU WIN";
+    const char *over    = "GAME OVER";
+
+    WIN win;
+
+    bool moveLeft();
+    bool isOver();
+    void rotateData();
+    void randNew();
+    void printMsg(const char *msg, int starty);
+};
+
+void Game::initWin()
 {
   initscr();
   if(has_colors() == FALSE)
@@ -31,299 +64,216 @@ void initWin(WIN *win)
   cbreak();
   noecho();
 
-  win->height = 9;
-  win->width = 25;
-  win->starty = 0;
-  win->startx = (COLS - win->width) / 2;
+  win.height = _n * 2 + 1;
+  win.width = _n * 6 + 1; // _n * 5 + _n + 1
+  win.starty = 0;
+  win.startx = (COLS - win.width) / 2;
+
+  printMsg(DESC, win.height + 1);
 }
 
-void drawNums(const vector<line> &nums, WIN *win)
-{
-  for (int j=win->starty; j<win->starty + win->height; ++j) {
-    for (int i=win->startx; i<win->startx + win->width;) {
-      if ((j - win->starty) % 2 == 0) {
-        if ((i - win->startx) % 6 == 0) {
-          mvaddch(j, i, '+');
-          i += 1;
-        } else {
-          mvprintw(j, i, "-----");
-          i += 5;
-        }
-      } else {
-        if ((i - win->startx) % 6 == 0) {
-          mvaddch(j, i, '|');
-          i += 1;
-        } else {
-          int x = (j - win->starty) / 2;
-          int y = (i - win->startx) / 6;
-          if (nums[x][y] == 0) {
-            mvprintw(j, i, "     ");
-          } else {
-            attron(COLOR_PAIR(1));
-            mvprintw(j, i, "%5d", nums[x][y]);
-            attroff(COLOR_PAIR(1));
-          }
-          i += 5;
-        }
-      }
-    }
-  }
-}
-
-void printMsg(char *s)
-{
-  attron(COLOR_PAIR(2));
-  mvprintw(10, 0, s);
-  attroff(COLOR_PAIR(2));
-  refresh();
-}
-
-int randPos()
-{
-  srand(time(NULL));
-  return rand() % 4;
-}
-
-void initNums(vector<line> &nums)
-{
-  int x0 = randPos();
-  int y0 = randPos();
-  int x1, y1;
-  do {
-    x1 = randPos();
-    y1 = randPos();
-  } while(x1 == x0 && y1 == y0);
-
-  nums.clear();
-  for (int i=0; i<4; ++i) {
+void Game::initData() {
+  _data.clear();
+  for (int row = 0; row < _n; ++row) {
     line l;
-    for (int j=0; j<4; ++j)
+    for (int col = 0; col < _n; ++col) {
       l.push_back(0);
-    nums.push_back(l);
+    }
+    _data.push_back(l);
   }
-  nums[x0][y0] = 2;
-  nums[x1][y1] = 2;
+  randNew();
+  randNew();
 }
 
-void mergeLeft(vector<line> &nums, vector<pos> &nullPos)
+void Game::draw()
 {
-  for (int row=0; row<4; ++row) {
-    bool lastMerged = false;
-    deque<int> que;
-    for (int col=0; col<4; ++col) {
-      if (!lastMerged && !que.empty() && (que.back() == nums[row][col])) {
-        que.pop_back();
-        que.push_back(nums[row][col] << 1);
-        lastMerged = true;
-      } else if (nums[row][col] != 0) {
-        que.push_back(nums[row][col]);
-        lastMerged = false;
+  if (_status == NORMAL) {
+    for (int j=win.starty; j<win.starty + win.height; ++j) {
+      for (int i=win.startx; i<win.startx + win.width;) {
+        if ((j - win.starty) % 2 == 0) {
+          if ((i - win.startx) % 6 == 0) {
+            mvaddch(j, i, '+');
+            i += 1;
+          } else {
+            mvprintw(j, i, "-----");
+            i += 5;
+          }
+        } else {
+          if ((i - win.startx) % 6 == 0) {
+            mvaddch(j, i, '|');
+            i += 1;
+          } else {
+            int x = (j - win.starty) / 2;
+            int y = (i - win.startx) / 6;
+            if (_data[x][y] == 0) {
+              mvprintw(j, i, "     ");
+            } else {
+              attron(COLOR_PAIR(1));
+              mvprintw(j, i, "%5d", _data[x][y]);
+              attroff(COLOR_PAIR(1));
+            }
+            i += 5;
+          }
+        }
       }
     }
-    for (int col=0; col<4; ++col) {
-      if (!que.empty()) {
-        nums[row][col] = que.front();
-        que.pop_front();
+    printMsg(DESC, win.height + 1);
+  } else if (_status == OVER) {
+    printMsg(over, win.height / 2);
+  } else if (_status == SUCCESS) {
+    printMsg(success, win.height / 2);
+  }
+}
+
+void Game::processInput() {
+  char ch;
+  bool changed;
+  ch = getch();
+  if (ch >= 'A' && ch <= 'Z')
+    ch -= ('A' - 'a');
+
+  if (ch == 'r') {
+    initData();
+  } else if (ch == 'q') {
+    _status = QUIT;
+  }
+
+  if (_status == NORMAL) {
+    switch(ch) {
+      case 'w':
+        rotateData();
+        changed = moveLeft();
+        rotateData();
+        rotateData();
+        rotateData();
+        break;
+      case 'a':
+        changed = moveLeft();
+        break;
+      case 's':
+        rotateData();
+        rotateData();
+        rotateData();
+        changed = moveLeft();
+        rotateData();
+        break;
+      case 'd':
+        rotateData();
+        rotateData();
+        changed = moveLeft();
+        rotateData();
+        rotateData();
+        break;
+    }
+    if (changed) {
+      randNew();
+    } else if(isOver()) {
+      _status = OVER;
+    }
+  }
+}
+
+bool Game::moveLeft() {
+  int lastValue;
+  int curWritePos;
+  vector<line> tmpData(_data);
+
+  for (int row = 0; row < _n; ++row) {
+    lastValue = 0;
+    curWritePos = 0;
+    for (int col = 0; col < _n; ++col) {
+      if (_data[row][col] == 0) {
+        continue;
+      }
+
+      if (lastValue == 0) {
+        lastValue = _data[row][col];
       } else {
-        nums[row][col] = 0;
-        nullPos.push_back(make_pair(row, col));
+        if (lastValue == _data[row][col]) {
+          _data[row][curWritePos++] = lastValue << 1;
+          if (_data[row][curWritePos] == _target) {
+            _status = SUCCESS;
+          }
+          lastValue = 0;
+        } else {
+          _data[row][curWritePos++] = lastValue;
+          lastValue = _data[row][col];
+        }
       }
+      _data[row][col] = 0;
+    }
+    if (lastValue != 0) {
+      _data[row][curWritePos] = lastValue;
+    }
+  }
+
+  for (int row = 0; row < _n; ++row) {
+    for (int col = 0; col < _n; ++col) {
+      if (_data[row][col] != tmpData[row][col]) return true;
+    }
+  }
+  return false;
+}
+
+//逆时针旋转90度
+void Game::rotateData()
+{
+  vector<line> tmpData(_data);
+  for (int row = 0; row < _n; ++row) {
+    for (int col = 0; col < _n; ++col) {
+      tmpData[row][col] = _data[col][_n - 1 - row];
+    }
+  }
+  for (int row = 0; row < _n; ++row) {
+    for (int col = 0; col < _n; ++col) {
+      _data[row][col] = tmpData[row][col];
     }
   }
 }
 
-void mergeRight(vector<line> &nums, vector<pos> &nullPos)
-{
-  for (int row=0; row<4; ++row) {
-    bool lastMerged = false;
-    deque<int> que;
-    for (int col=3; col>=0; --col) {
-      if (!lastMerged && !que.empty() && (que.back() == nums[row][col])) {
-        que.pop_back();
-        que.push_back(nums[row][col] << 1);
-        lastMerged = true;
-      } else if (nums[row][col] != 0) {
-        que.push_back(nums[row][col]);
-        lastMerged = false;
-      }
-    }
-    for (int col=3; col>=0; --col) {
-      if (!que.empty()) {
-        nums[row][col] = que.front();
-        que.pop_front();
-      } else {
-        nums[row][col] = 0;
-        nullPos.push_back(make_pair(row, col));
+void Game::randNew() {
+  vector<int> emptyPos;
+  for (int row = 0; row < _n; ++row) {
+    for (int col = 0; col < _n; ++col) {
+      if (_data[row][col] == 0) {
+        emptyPos.push_back(row * _n + col);
       }
     }
   }
-}
-
-void mergeUp(vector<line> &nums, vector<pos> &nullPos)
-{
-  for (int col=0; col<4; ++col) {
-    bool lastMerged = false;
-    deque<int> que;
-    for (int row=0; row<4; ++row) {
-      if (!lastMerged && !que.empty() && (que.back() == nums[row][col])) {
-        que.pop_back();
-        que.push_back(nums[row][col] << 1);
-        lastMerged = true;
-      } else if (nums[row][col] != 0) {
-        que.push_back(nums[row][col]);
-        lastMerged = false;
-      }
-    }
-    for (int row=0; row<4; ++row) {
-      if (!que.empty()) {
-        nums[row][col] = que.front();
-        que.pop_front();
-      } else {
-        nums[row][col] = 0;
-        nullPos.push_back(make_pair(row, col));
-      }
-    }
+  if (emptyPos.size() > 0) {
+    int randPosSum = emptyPos[rand() % emptyPos.size()];
+    _data[randPosSum / _n][randPosSum % _n] = rand() % 10 == 1 ? 4 : 2;
   }
 }
 
-
-void mergeDown(vector<line> &nums, vector<pos> &nullPos)
+bool Game::isOver()
 {
-  for (int col=0; col<4; ++col) {
-    bool lastMerged = false;
-    deque<int> que;
-    for (int row=3; row>=0; --row) {
-      if (!lastMerged && !que.empty() && (que.back() == nums[row][col])) {
-        que.pop_back();
-        que.push_back(nums[row][col] << 1);
-        lastMerged = true;
-      } else if (nums[row][col] != 0) {
-        que.push_back(nums[row][col]);
-        lastMerged = false;
-      }
-    }
-    for (int row=3; row>=0; --row) {
-      if (!que.empty()) {
-        nums[row][col] = que.front();
-        que.pop_front();
-      } else {
-        nums[row][col] = 0;
-        nullPos.push_back(make_pair(row, col));
-      }
+  for (int row = 0; row < _n; ++row) {
+    for (int col = 0; col < _n; ++col) {
+      if ((row + 1 < _n) && ((_data[row][col] * _data[row+1][col] == 0) || (_data[row+1][col] == _data[row][col]))) return false;
+      if ((col + 1 < _n) && ((_data[row][col] * _data[row][col+1] == 0) || (_data[row][col+1] == _data[row][col]))) return false;
     }
   }
+  return true;
 }
 
-int nextNum()
+void Game::printMsg(const char *msg, int starty)
 {
-  srand(time(NULL));
-  int ri = rand() % 1000 + 1;
-  return ri > 100 ? 2 : 4;
-}
-
-void merge(vector<line> &nums, int direction)
-{
-  vector<pos> nullPos;
-  switch(direction) {
-    case LEFT:
-      mergeLeft(nums, nullPos);
-      break;
-    case RIGHT:
-      mergeRight(nums, nullPos);
-      break;
-    case UP:
-      mergeUp(nums, nullPos);
-      break;
-    case DOWN:
-      mergeDown(nums, nullPos);
-      break;
-  }
-  int nullPosSize = nullPos.size();
-  if (nullPosSize > 0) {
-    srand(time(NULL));
-    int randPos = rand() % nullPosSize;
-    nums[nullPos[randPos].first][nullPos[randPos].second] = nextNum();
-  }
-}
-
-int judge(vector<line> &nums)
-{
-  for (int row=0; row<4; ++row) {
-    for (int col=0; col<4; ++col) {
-      if (nums[row][col] == 0) {
-        return 0; //继续
-      } else if (nums[row][col] == 2048) {
-        return 1; //完成
-      } else {
-        if (row - 1 >=0 && nums[row][col] == nums[row-1][col]) return 0;
-        if (col - 1 >=0 && nums[row][col] == nums[row][col-1]) return 0;
-        if (row + 1 < 4 && nums[row][col] == nums[row+1][col]) return 0;
-        if (col + 1 < 4 && nums[row][col] == nums[row][col+1]) return 0;
-      }
-    }
-  }
-  return -1;//失败
-}
-
-void success()
-{
-  mvprintw(11, COLS / 2 , "SUCCESS!");
-}
-
-void fail()
-{
-  mvprintw(11, COLS / 2 , "FAIL!");
+  mvprintw(starty, (COLS - strlen(msg)) / 2, msg);
 }
 
 int main()
 {
-  vector<line> nums;
-  
+  Game game(5, 2048);
+  game.initData();
+  game.initWin();
 
-  WIN win;
-  initWin(&win);
-  initNums(nums);
-  drawNums(nums, &win);
+  do {
+    game.draw();
+    game.processInput();
+  } while (!game.isQuit());
 
-  int ch;
-  while((ch = getch()) != 'q') {
-    switch(ch) {
-      case 'h':
-      case 'H':
-        merge(nums, LEFT);
-        drawNums(nums, &win);
-        break;
-      case 'l':
-      case 'L':
-        merge(nums, RIGHT);
-        drawNums(nums, &win);
-        break;
-      case 'k':
-      case 'K':
-        merge(nums, UP);
-        drawNums(nums, &win);
-        break;
-      case 'j':
-      case 'J':
-        merge(nums, DOWN);
-        drawNums(nums, &win);
-        break;
-      case 'r':
-      case 'R':
-        initNums(nums);
-        drawNums(nums, &win);
-        break;
-    }
-    if (judge(nums) == 1) {
-      success();
-      getch();
-      break;
-    } else if (judge(nums) == -1) {
-      fail();
-      getch();
-      break;
-    }
-  }
-  endwin();
+  getch();
+  game.clearWin();
   return 0;
 }
