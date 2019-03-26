@@ -264,7 +264,7 @@ void Game::printMsg(const char *msg, int starty)
 
 int main()
 {
-  Game game(5, 2048);
+  Game game(4, 2048);
   game.initData();
   game.initWin();
 
