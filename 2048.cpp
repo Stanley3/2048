@@ -1,5 +1,6 @@
 #include <ncurses.h>
 #include <cstdlib>
+#include <cstring>
 #include <ctime>
 #include <vector>
 #include <deque>
